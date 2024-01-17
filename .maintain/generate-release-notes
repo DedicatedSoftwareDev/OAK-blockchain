@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+tag=$1
+
+generate_srtool_block() {
+  digest_file=$1; shift
+
+  runtime=$(cat $digest_file)
+  rust=$(echo $runtime | jq --raw-output .rustc)
+  spec_name=$(
+    echo $runtime \
+      | jq --raw-output .runtimes.compressed.subwasm.core_version.specName
+  )
+  impl_name=$(
+    echo $runtime \
+      | jq --raw-output .runtimes.compressed.subwasm.core_version.implName
+  )
+  spec_version=$(
+    echo $runtime \
+      | jq --raw-output .runtimes.compressed.subwasm.core_version.specVersion
+  )
+  impl_version=$(
+    echo $runtime \
+      | jq --raw-output .runtimes.compressed.subwasm.core_version.implVersion
+  )
+  authoring_version=$(
+    echo $runtime \
+      | jq --raw-output .runtimes.compressed.subwasm.core_version.authoringVersion
+  )
+  transaction_version=$(
+    echo $runtime \
+      | jq --raw-output .runtimes.compressed.subwasm.core_version.transactionVersion
+  )
+  size=$(echo $runtime| jq --raw-output .runtimes.compressed.size)
+  proposal=$(echo $runtime | jq --raw-output .runtimes.compressed.prop)
+  ipfs=$(echo $runtime | jq --raw-output .runtimes.compressed.ipfs)
+  blake2_256=$(echo $runtime | jq --raw-output .runtimes.compressed.blake2_256)
+
+  spec="$spec_name-$spec_version"
+  extended="$impl_name-$impl_version.tx$transaction_version.au$authoring_version"
+
+  echo "## $spec_name srtool output"
+  echo
+
+  cat <<-EOF
+  \`\`\`
+  Rust             : $rust
+  Spec version     : $spec_version
+  Impl version     : $impl_version
+  Tx version       : $transaction_version
+  Size             : $size
+  Proposal         : $proposal
+  IPFS             : $ipfs
+  BLAKE2_256       : $blake2_256
+  \`\`\`
+EOF
+}
+
+notes=$(
+  curl -s -L \
+    -X POST \
+    -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    -d '{"tag_name":"'$tag'","target_commitish":"'$tag'"}' \
+    https://api.github.com/repos/OAK-Foundation/OAK-blockchain/releases/generate-notes
+)
+
+echo $notes | jq .body | sed -e 's/^"//' -e 's/"$//' -e 's/\\n/\n/g'
+echo
+
+for digest in $(ls *-srtool-digest.json); do
+  generate_srtool_block $digest
+done
